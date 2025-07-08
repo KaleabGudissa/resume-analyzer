@@ -1,84 +1,106 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import './ResumeUpload.css';
+// src/components/ResumeUpload.js
+import React, { useState } from "react";
+import axios from "axios";
+import { jsPDF } from "jspdf";
+import "./ResumeUpload.css";
+
+const API_BASE = process.env.REACT_APP_API || "http://127.0.0.1:8000";
 
 export default function ResumeUpload() {
+    // ---------------- state ----------------
     const [resume, setResume] = useState(null);
-    const [jobText, setJobText] = useState('');
-    const [jobUrl, setJobUrl] = useState('');
+    const [jobText, setJobText] = useState("");
+    const [jobUrl, setJobUrl] = useState("");
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    const handleResumeChange = (e) => {
+    // -------------- helpers ---------------
+    const handleResume = (e) => {
         setResume(e.target.files[0]);
         setResult(null);
     };
 
     const handleAnalyze = async () => {
-        if (!resume) return alert('Please upload your resume.');
-
-        const formData = new FormData();
-        formData.append('resume', resume);
-
-        setLoading(true);
-        try {
-            const res = await axios.post('http://127.0.0.1:8000/analyze-resume/', formData);
-            setResult(res.data);
-        } catch (err) {
-            alert('Failed to analyze resume');
-            console.error(err);
+        if (!resume || !resume.name.endsWith(".pdf")) {
+            alert("Please upload a PDF resume.");
+            return;
         }
-        setLoading(false);
+        const form = new FormData();
+        form.append("resume", resume);
+        await callEndpoint("/analyze-resume/", form);
     };
 
     const handleCompare = async () => {
-        if (!resume) return alert('Please upload your resume.');
+        if (!resume) {
+            alert("Upload your resume first.");
+            return;
+        }
         if (!jobText.trim() && !jobUrl.trim()) {
-            return alert('Please paste job description text or provide a URL.');
+            alert("Paste a job description or provide a job URL.");
+            return;
         }
-
-        const formData = new FormData();
-        formData.append('resume', resume);
-        if (jobText.trim()) formData.append('jobtext', jobText);
-        if (jobUrl.trim()) formData.append('joburl', jobUrl);
-
-        setLoading(true);
-        try {
-            const res = await axios.post('http://127.0.0.1:8000/compare-resume-job/', formData);
-            setResult(res.data);
-        } catch (err) {
-            alert('Comparison failed');
-            console.error(err);
-        }
-        setLoading(false);
+        const form = new FormData();
+        form.append("resume", resume);
+        if (jobText.trim()) form.append("jobtext", jobText);
+        if (jobUrl.trim()) form.append("joburl", jobUrl);
+        await callEndpoint("/compare-resume-job/", form);
     };
 
-    // Helper: render summary badge when available
-    const SummaryBadge = ({ summary }) => (
-        <div className="badge">{summary}</div>
-    );
+    const callEndpoint = async (path, formData) => {
+        try {
+            setLoading(true);
+            const res = await axios.post(`${API_BASE}${path}`, formData);
+            setResult(res.data);
+        } catch (err) {
+            console.error(err);
+            alert("Request failed – see console.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    // Helper: render similarity bar when similarity_percentage exists
-    const SimilarityBar = ({ percent }) => (
-        <div className="bar-wrap">
-            <div className="bar-fill" style={{ width: `${percent}%` }} />
-            <span className="bar-label">{percent}% overall similarity</span>
-        </div>
-    );
+    const handleDownload = () => {
+        if (!result || result.status !== "success") {
+            alert("Run an analysis first.");
+            return;
+        }
+        const doc = new jsPDF();
+        doc.setFontSize(14).text("AI Resume Analyzer – Report", 10, 15);
+        doc.setFontSize(11);
+        doc.text(`Summary: ${result.summary}`, 10, 30);
+        if (result.data?.similarity_percentage !== undefined) {
+            doc.text(`Similarity: ${result.data.similarity_percentage}%`, 10, 40);
+            doc.text(
+                `Keyword match: ${result.data.keyword_match_percentage}%`,
+                10,
+                48
+            );
+        }
+        const matched = result.data?.matched_keywords || [];
+        doc.text("Matched keywords:", 10, 60);
+        matched.slice(0, 15).forEach((kw, i) =>
+            doc.text(`• ${kw}`, 15, 68 + i * 6)
+        );
+        doc.save("resume_analysis_report.pdf");
+    };
 
+    // --------------- UI -----------------
     return (
         <div className="resume-container">
             <h1 className="resume-title">AI Resume Analyzer</h1>
 
+            {/* resume upload */}
             <label className="resume-label">Upload Resume (PDF)</label>
-            <input type="file" accept=".pdf" onChange={handleResumeChange} />
+            <input type="file" accept=".pdf" onChange={handleResume} />
 
+            {/* buttons */}
             <div className="resume-buttons">
                 <button className="resume-button" onClick={handleAnalyze}>
                     Analyze Resume
                 </button>
             </div>
 
+            {/* job inputs */}
             <label className="resume-label">Paste Job Description (optional)</label>
             <textarea
                 rows={5}
@@ -103,21 +125,28 @@ export default function ResumeUpload() {
 
             {loading && <p className="resume-loading">⏳ Processing...</p>}
 
-            {result && result.status === 'success' && (
-                <div className="resume-result">
-                    {result.summary && <SummaryBadge summary={result.summary} />}
-
-                    {result.data?.similarity_percentage !== undefined && (
-                        <SimilarityBar percent={result.data.similarity_percentage} />
+            {/* result */}
+            {result && (
+                <>
+                    {result.status === "success" ? (
+                        <div className="resume-result">
+                            <h3>Result</h3>
+                            <p>
+                                <strong>{result.summary}</strong>
+                            </p>
+                            <pre>{JSON.stringify(result.data, null, 2)}</pre>
+                        </div>
+                    ) : (
+                        <div className="resume-result">
+                            <h3 style={{ color: "red" }}>Error</h3>
+                            <p>{result.message}</p>
+                        </div>
                     )}
 
-                    <h3>Raw Response</h3>
-                    <pre>{JSON.stringify(result, null, 2)}</pre>
-                </div>
-            )}
-
-            {result && result.status === 'error' && (
-                <div className="resume-error">{result.message}</div>
+                    <button className="resume-button" onClick={handleDownload}>
+                        Download PDF Report
+                    </button>
+                </>
             )}
         </div>
     );
