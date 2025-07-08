@@ -1,0 +1,12 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+venv/
+
+# Node / React
+node_modules/
+frontend/build/
+
+# IDE / OS junk
+.idea/
+.DS_Store
