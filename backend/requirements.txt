@@ -1,4 +1,7 @@
 fastapi
-uvicorn
+uvicorn[standard]
 python-multipart
 PyMuPDF
+requests
+beautifulsoup4
+scikit-learn
