@@ -2,7 +2,7 @@
 
 **Live demo:** <https://resume-analyzer0.netlify.app/>  
 
-Need to know—quickly—whether a résumé actually matches a job post?  
+Need to know quickly whether a resume actually matches a job post?  
 Upload a PDF, paste (or link) the job description, and get a clear “fit score,” keyword overlap, and plain-English feedback in seconds.
 
 > “It feels like having a mini recruiter on my laptop.” — me, after writing too many cover letters
